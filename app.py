@@ -81,7 +81,7 @@ def ask_personal_chatbot(query, chat_history=None, k=4):
     return response.choices[0].message.content
 
 def gradio_chat_fn(message, history):
-    # Gradio history format: list of [user_msg, bot_msg] pairs
+    # Gradio history: list of [user_msg, bot_msg] pairs
     chat_history = []
     for user_msg, bot_msg in history:
         chat_history.append({"role": "user", "content": user_msg})
@@ -92,12 +92,11 @@ def gradio_chat_fn(message, history):
 def health():
     return {"status": "ok"}
 
-# Create chat interface (removed type parameter - not supported in all versions)
+# Minimal ChatInterface (no theme, no type - maximum compatibility)
 demo = gr.ChatInterface(
     fn=gradio_chat_fn,
     title=f"Chat with {YOUR_NAME}\'s AI Assistant",
-    description="Ask me about my background, skills, and projects!",
-    theme=gr.themes.Soft(),
+    description="Ask me about my background, skills, and projects!"
 )
 
 demo.app.get("/health")(health)
