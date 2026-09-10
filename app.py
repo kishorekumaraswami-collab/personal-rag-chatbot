@@ -7,7 +7,7 @@ from groq import Groq
 
 print("Loading pre-built index...")
 
-# Load FAISS index (pre-built!)
+# Load FAISS index
 index = faiss.read_index("faiss_index.bin")
 
 # Load chunks and metadata
@@ -21,21 +21,21 @@ print(f"✅ Loaded {len(chunks)} chunks and index")
 # Groq client
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-# LAZY LOAD: Only load model on first query (saves 80MB at startup!)
+# Lazy load model
 embedder = None
 
 def get_embedder():
     global embedder
     if embedder is None:
-        print("First query detected - loading tiny model...")
+        print("First query - loading tiny model...")
         from sentence_transformers import SentenceTransformer
         embedder = SentenceTransformer("paraphrase-MiniLM-L3-v2")
-        print("✅ Model loaded (61MB)")
+        print("✅ Model loaded")
     return embedder
 
 def retrieve(query, k=4):
     import numpy as np
-    emb = get_embedder()  # Only loads on first call!
+    emb = get_embedder()
     q_vec = emb.encode([query]).astype("float32")
     _, indices = index.search(q_vec, k)
     return [chunks[i] for i in indices[0]]
@@ -60,8 +60,7 @@ def ask_personal_chatbot(query, chat_history=None, k=4):
         f"3. NEVER fabricate or guess projects, skills, job titles, dates, or any details not explicitly "
         f"mentioned in the excerpts. Never say \"probably\" or \"might have\" - only state facts.\n\n"
         
-        f"4. Always refer to {YOUR_NAME} in third person (e.g., \"{YOUR_NAME} has experience in...\"). "
-        f"Never use first person.\n\n"
+        f"4. Always refer to {YOUR_NAME} in third person (e.g., \"{YOUR_NAME} has experience in...\").\n\n"
         
         f"5. Keep responses professional, friendly, and concise (2-4 sentences unless asked for details).\n\n"
         
@@ -82,27 +81,29 @@ def ask_personal_chatbot(query, chat_history=None, k=4):
     return response.choices[0].message.content
 
 def gradio_chat_fn(message, history):
+    # Gradio history format: list of [user_msg, bot_msg] pairs
     chat_history = []
-    for turn in history:
-        if turn["role"] in ("user", "assistant"):
-            chat_history.append({"role": turn["role"], "content": turn["content"]})
+    for user_msg, bot_msg in history:
+        chat_history.append({"role": "user", "content": user_msg})
+        if bot_msg:
+            chat_history.append({"role": "assistant", "content": bot_msg})
     return ask_personal_chatbot(message, chat_history=chat_history)
 
 def health():
     return {"status": "ok"}
 
+# Create chat interface (removed type parameter - not supported in all versions)
 demo = gr.ChatInterface(
     fn=gradio_chat_fn,
     title=f"Chat with {YOUR_NAME}\'s AI Assistant",
     description="Ask me about my background, skills, and projects!",
-    type="messages",
     theme=gr.themes.Soft(),
 )
 
 demo.app.get("/health")(health)
 
 if __name__ == "__main__":
-    print("Starting Gradio server (model will load on first query)...")
+    print("Starting Gradio server...")
     demo.launch(
         server_name="0.0.0.0",
         server_port=int(os.environ.get("PORT", 10000))
